@@ -1,3 +1,4 @@
+// Worker 是用于辅助Fetch处理超链接的一个队列
 package sophon
 
 import (
@@ -12,21 +13,20 @@ var (
 	ErrQueueClosed = errors.New("sophon: send on a closed queue")
 )
 
-type Woker struct {
+type Worker struct {
 	// 需要处理的网站基本信息
 	cmd chan Command
 
-	// woker的数量
 	count int64
 
 	// channel 信号标记
-	closed, canneled, done chan byte
+	closed, cancelled, done chan byte
 
 	wg sync.WaitGroup
 }
 
 // 添加任务
-func (w *Woker) Send(c Command) error {
+func (w *Worker) Send(c Command) error {
 	if c == nil {
 		return ErrEmptyHost
 	}
@@ -45,7 +45,7 @@ func (w *Woker) Send(c Command) error {
 }
 
 // 发送带method方法的任务
-func (w *Woker) sendWithMethod(method string, rawurl []string) (int, error) {
+func (w *Worker) sendWithMethod(method string, rawurl []string) (int, error) {
 	for i, v := range rawurl {
 		u, err := url.Parse(v)
 		if err != nil {
@@ -58,8 +58,8 @@ func (w *Woker) sendWithMethod(method string, rawurl []string) (int, error) {
 	return len(rawurl), nil
 }
 
-// 关闭队列
-func (w *Woker) Close() error {
+// 关闭worker
+func (w *Worker) Close() error {
 	select {
 	case <-w.closed:
 		return nil
@@ -76,20 +76,20 @@ func (w *Woker) Close() error {
 	}
 }
 
-// 阻塞当前goroutine直到队列关闭
-func (w *Woker) Block() {
+// 阻塞当前goroutine直到worker关闭
+func (w *Worker) Block() {
 	<-w.done
 }
 
-// 暂时取消
-func (w *Woker) Cancel() error {
+// 取消
+func (w *Worker) Cancel() error {
 	select {
 	case <-w.cancelled:
 		return nil
 	default:
-	// 标记取消队列
-		close(q.cancelled)
+		// 标记取消队列
+		close(w.cancelled)
 
-		return q.Close()
+		return w.Close()
 	}
 }
