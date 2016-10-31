@@ -1,10 +1,17 @@
 package sophon
 
-import "sync"
+import (
+	"sync"
+	"errors"
+)
+
+var (
+	ErrEmptyHost = errors.New("sophon: invalid empty host")
+)
 
 type Queue struct {
 	// 队列中的任务
-	task chan interface{}
+	task chan Command
 
 	// channel处理信号
 	closed, cancelled, done chan struct{}
@@ -15,16 +22,7 @@ type Queue struct {
 	wg sync.WaitGroup
 }
 
-func NewQueue(task interface{}) *Queue {
-	q := new(Queue)
-	q.task <- task
-	q.closed = make(chan struct{})
-	q.cancelled = make(chan struct{})
-	q.done = make(chan struct{})
-
-	return q
-}
-
+// 关闭队列
 func (q *Queue) Close() error {
 	select {
 	case <-q.closed:
@@ -47,6 +45,7 @@ func (q *Queue) Block() {
 	<-q.done
 }
 
+// 暂时取消
 func (q *Queue) Cancel() error {
 	select {
 	case <-q.cancelled:
@@ -58,5 +57,4 @@ func (q *Queue) Cancel() error {
 		return q.Close()
 	}
 }
-
 
