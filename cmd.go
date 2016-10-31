@@ -12,11 +12,11 @@ type Command interface {
 
 // 实现一个基本的command
 type Cmd struct {
-	url *url.URL
+	url    *url.URL
 	method string
 }
 
-func (cmd *Cmd) URL() *url.URL  {
+func (cmd *Cmd) URL() *url.URL {
 	return cmd.url
 }
 
