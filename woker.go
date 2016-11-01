@@ -58,6 +58,14 @@ func (w *Worker) sendWithMethod(method string, rawurl []string) (int, error) {
 	return len(rawurl), nil
 }
 
+func (w *Worker) SendStringGet(rawurl ...string) (int, error) {
+	return w.sendWithMethod("GET", rawurl)
+}
+
+func (w *Worker) SendStringHead(rawurl ...string) (int, error) {
+	return w.sendWithMethod("HEAD", rawurl)
+}
+
 // 关闭worker
 func (w *Worker) Close() error {
 	select {

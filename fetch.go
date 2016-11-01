@@ -5,11 +5,23 @@ import (
 	"net/http"
 	"time"
 	"sync"
-	"spider/core/downloader/surfer/agent"
+	"io"
+	"io/ioutil"
+	"strings"
 )
 
+const (
+	DefaultCrawlDelay = 5 * time.Second
+
+	DefaultUserAgent = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.71 Safari/537.36"
+
+	DefaultWorkerIdleTTL = 30 * time.Second
+)
+
+
 type Fetcher struct {
-	hosts map[string]chan Command
+	// 为每个请求调用处理程序. 所有成功排队请求产生一个处理程序。
+	Handler Handler
 
 	UserAgent string
 
@@ -20,11 +32,25 @@ type Fetcher struct {
 
 	CrawlDelay time.Duration
 
+	AutoClose	bool
+
 	w *Worker
 	mu sync.Mutex
+
+	hosts map[string]chan Command
 }
 
-func (f *Fetcher) Init() *Worker {
+func New(h Handler) *Fetcher {
+	return &Fetcher{
+		Handler:       h,
+		CrawlDelay:    DefaultCrawlDelay,
+		Client:    http.DefaultClient,
+		UserAgent:     DefaultUserAgent,
+		WorkerIdleTTL: DefaultWorkerIdleTTL,
+	}
+}
+
+func (f *Fetcher) Start() *Worker {
 	f.hosts = make(map[string]chan Command)
 
 	f.w = &Worker{
@@ -36,12 +62,13 @@ func (f *Fetcher) Init() *Worker {
 
 	// Start the one and only queue processing goroutine.
 	f.w.wg.Add(1)
-	go f.processQueue()
+	go f.processWorker()
 
 	return f.w
 }
 
-func (f *Fetcher) processQueue() {
+// 让所有的worker运行在自己的goroutine中
+func (f *Fetcher) processWorker() {
 LOOP:
 	for v := range f.w.cmd {
 		if v == nil {
@@ -109,7 +136,7 @@ func (f *Fetcher) processChan(ch <-chan Command, hostKey string) {
 	loop:
 	for {
 		select {
-		case <-f.q.cancelled:
+		case <-f.w.cancelled:
 			break loop
 		case v, ok := <-ch:
 			if !ok {
@@ -124,38 +151,21 @@ func (f *Fetcher) processChan(ch <-chan Command, hostKey string) {
 
 		// was it cancelled during the wait? check again
 				select {
-				case <-f.q.cancelled:
+				case <-f.w.cancelled:
 					break loop
 				default:
 				// go on
 				}
 
-			switch r, ok := v.(robotCommand); {
-			case ok:
-				// This is the robots.txt request
-				agent = f.getRobotAgent(r)
-				// Initialize the crawl delay
-				if agent != nil && agent.CrawlDelay > 0 {
-					delay = agent.CrawlDelay
-				}
+			res, err := f.doRequest(v)
+			f.visit(v, res, err)
+		// No delay on error - the remote host was not reached
+			if err == nil {
 				wait = time.After(delay)
-
-			case agent == nil || agent.Test(v.URL().Path):
-				// Path allowed, process the request
-				res, err := f.doRequest(v)
-				f.visit(v, res, err)
-				// No delay on error - the remote host was not reached
-				if err == nil {
-					wait = time.After(delay)
-				} else {
-					wait = nil
-				}
-
-			default:
-				// Path disallowed by robots.txt
-				f.visit(v, nil, ErrDisallowed)
+			} else {
 				wait = nil
 			}
+
 		// Every time a command is received, reset the ttl channel
 			ttl = time.After(f.WorkerIdleTTL)
 
@@ -167,7 +177,7 @@ func (f *Fetcher) processChan(ch <-chan Command, hostKey string) {
 
 		// Close the queue if AutoClose is set and there are no more hosts.
 			if f.AutoClose && len(f.hosts) == 0 {
-				go f.q.Close()
+				go f.w.Close()
 			}
 			f.mu.Unlock()
 			if ok {
@@ -177,5 +187,73 @@ func (f *Fetcher) processChan(ch <-chan Command, hostKey string) {
 		}
 	}
 
-	f.q.wg.Done()
+	f.w.wg.Done()
 }
+
+func (f *Fetcher) visit(cmd Command, res *http.Response, err error) {
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+	// if the Command implements Handler, call that handler, otherwise
+	// dispatch to the Fetcher's Handler.
+	if h, ok := cmd.(Handler); ok {
+		h.Handle(&Context{Cmd: cmd, W: f.w}, res, err)
+		return
+	}
+	f.Handler.Handle(&Context{Cmd: cmd, W: f.w}, res, err)
+}
+
+//
+func (f *Fetcher) doRequest(cmd Command) (*http.Response, error) {
+	req, err := http.NewRequest(cmd.Method(), cmd.URL().String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	// If the Command implements some other recognized interfaces, set
+	// the request accordingly (see cmd.go for the list of interfaces).
+	// First, the Header values.
+	if hd, ok := cmd.(HeaderProvider); ok {
+		for k, v := range hd.Header() {
+			req.Header[k] = v
+		}
+	}
+	// BasicAuth has higher priority than an Authorization header set by
+	// a HeaderProvider.
+	if ba, ok := cmd.(BasicAuthProvider); ok {
+		req.SetBasicAuth(ba.BasicAuth())
+	}
+	// Cookies are added to the request, even if some cookies were set
+	// by a HeaderProvider.
+	if ck, ok := cmd.(CookiesProvider); ok {
+		for _, c := range ck.Cookies() {
+			req.AddCookie(c)
+		}
+	}
+	// For the body of the request, ReaderProvider has higher priority
+	// than ValuesProvider.
+	if rd, ok := cmd.(ReaderProvider); ok {
+		rdr := rd.Reader()
+		rc, ok := rdr.(io.ReadCloser)
+		if !ok {
+			rc = ioutil.NopCloser(rdr)
+		}
+		req.Body = rc
+	} else if val, ok := cmd.(ValuesProvider); ok {
+		v := val.Values()
+		req.Body = ioutil.NopCloser(strings.NewReader(v.Encode()))
+		if req.Header.Get("Content-Type") == "" {
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		}
+	}
+
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", f.UserAgent)
+	}
+	// Do the request.
+	res, err := f.Client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
