@@ -8,6 +8,11 @@ import (
 	"io"
 	"io/ioutil"
 	"strings"
+	"fmt"
+	"github.com/PuerkitoBio/goquery"
+	"net/url"
+	"path"
+	"log"
 )
 
 const (
@@ -21,7 +26,7 @@ const (
 
 type Fetcher struct {
 	// 为每个请求调用处理程序. 所有成功排队请求产生一个处理程序。
-	Handler Handler
+	//Handler Handler
 
 	UserAgent string
 
@@ -40,9 +45,9 @@ type Fetcher struct {
 	hosts map[string]chan Command
 }
 
-func New(h Handler) *Fetcher {
+func New() *Fetcher {
 	return &Fetcher{
-		Handler:       h,
+		//Handler:       h,
 		CrawlDelay:    DefaultCrawlDelay,
 		Client:    http.DefaultClient,
 		UserAgent:     DefaultUserAgent,
@@ -54,7 +59,7 @@ func (f *Fetcher) Start() *Worker {
 	f.hosts = make(map[string]chan Command)
 
 	f.w = &Worker{
-		cmd:        make(chan Command, 1),
+		cmd:       make(chan Command, 1),
 		closed:    make(chan byte),
 		cancelled: make(chan byte),
 		done:      make(chan byte),
@@ -190,17 +195,41 @@ func (f *Fetcher) processChan(ch <-chan Command, hostKey string) {
 	f.w.wg.Done()
 }
 
+var sliceUrl []string
+
 func (f *Fetcher) visit(cmd Command, res *http.Response, err error) {
+
 	if res != nil && res.Body != nil {
-		defer res.Body.Close()
+		//defer res.Body.Close()
+
+		//body := bufio.NewReader(res.Body)
+
+		doc, err := goquery.NewDocumentFromResponse(res)
+
+		if err != nil {
+			log.Println(err.Error())
+		}
+
+		seurl := f.processLinks(doc)
+
+		for _, v := range seurl {
+			sliceUrl = append(sliceUrl, v.String())
+
+			fmt.Printf("URL: %s\r\n ", v.String())
+
+		}
+
 	}
+
+	fmt.Printf("URL_COUNT: %d ,", len(sliceUrl))
+
 	// if the Command implements Handler, call that handler, otherwise
 	// dispatch to the Fetcher's Handler.
-	if h, ok := cmd.(Handler); ok {
+	/*if h, ok := cmd.(Handler); ok {
 		h.Handle(&Context{Cmd: cmd, W: f.w}, res, err)
 		return
 	}
-	f.Handler.Handle(&Context{Cmd: cmd, W: f.w}, res, err)
+	f.Handler.Handle(&Context{Cmd: cmd, W: f.w}, res, err)*/
 }
 
 //

@@ -5,6 +5,10 @@ import (
 	"sync"
 	"errors"
 	"net/url"
+	"github.com/PuerkitoBio/goquery"
+	"strings"
+	"path"
+	"log"
 )
 
 var (
@@ -100,4 +104,49 @@ func (w *Worker) Cancel() error {
 
 		return w.Close()
 	}
+}
+
+func (w *Worker) processLinks(doc *goquery.Document) (result []*url.URL) {
+	baseURL, _ := doc.Find("base[href]").Attr("href")
+	urls := doc.Find("a[href]").Map(func(_ int, s *goquery.Selection) string {
+		val, _ := s.Attr("href")
+		if baseURL != "" {
+			val = handleBaseTag(doc.Url, baseURL, val)
+		}
+		return val
+	})
+	for _, s := range urls {
+		// If href starts with "#", then it points to this same exact URL, ignore (will fail to parse anyway)
+		if len(s) > 0 && !strings.HasPrefix(s, "#") {
+			if parsed, e := url.Parse(s); e == nil {
+				parsed = doc.Url.ResolveReference(parsed)
+				result = append(result, parsed)
+			} else {
+				log.Printf("ignore on unparsable policy %s: %s", s, e.Error())
+			}
+		}
+	}
+	return
+}
+
+func handleBaseTag(root *url.URL, baseHref string, aHref string) string {
+	resolvedBase, err := root.Parse(baseHref)
+	if err != nil {
+		return ""
+	}
+
+	parsedURL, err := url.Parse(aHref)
+	if err != nil {
+		return ""
+	}
+	// If a[href] starts with a /, it overrides the base[href]
+	if parsedURL.Host == "" && !strings.HasPrefix(aHref, "/") {
+		aHref = path.Join(resolvedBase.Path, aHref)
+	}
+
+	resolvedURL, err := resolvedBase.Parse(aHref)
+	if err != nil {
+		return ""
+	}
+	return resolvedURL.String()
 }
