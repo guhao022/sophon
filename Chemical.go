@@ -249,6 +249,6 @@ type Chemical struct {
 	//
 }
 
-func (chem *Chemical) ChemText(code int) {
+func (chem *Chemical) ChemText(code int) string {
 	return chemText[code]
 }
