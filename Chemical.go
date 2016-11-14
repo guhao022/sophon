@@ -1,8 +1,10 @@
 package sophon
 
+type ChemicalNum int
+
 const (
 	// 元素周期表
-	H = 1001 + iota
+	H ChemicalNum = 1001 + iota
 	He
 	Li
 	Be
@@ -123,7 +125,7 @@ const (
 )
 
 // 元素周期数关联名称
-var chemText = map[int]string{
+var chemText = map[ChemicalNum]string{
 	H:  "氢",
 	He: "氦",
 	Li: "锂",
@@ -244,11 +246,53 @@ var chemText = map[int]string{
 	Og: "奥气（推测）",
 }
 
-// 化学物质
-type Chemical struct {
-	//
+func ChemText(code int) string {
+	return chemText[ChemicalNum(code)]
 }
 
-func (chem *Chemical) ChemText(code int) string {
-	return chemText[code]
+// 生成化学物质的函数
+type Contain func() map[int]ChemicalNum
+
+// 基本物质
+type Chemical interface {
+	Generate(f Contain, name string)  // 生成基本物质
+	ID() string                       // 获取基本物质的编号
+	Name() string                     // 获取基本物质的名称
+	Composition() map[int]ChemicalNum // 基本物质的化学成分
+}
+
+// 默认实现化学物质
+type chem struct {
+	id       string              // 物质编号
+	name     string              // 物质名称
+	comprise map[int]ChemicalNum // 物质化学成分
+}
+
+func New() *Chemical {
+	chem := new(chem)
+
+	chem.id = "1"
+
+	return chem
+}
+
+// 生成基本物质
+func (c *chem) Generate(f Contain, name string) {
+	c.comprise = f()
+	c.name = name
+}
+
+// 获取元素符号
+func (c *chem) ID() string {
+	return c.id
+}
+
+// 获取元素名称
+func (c *chem) Name() string {
+	return c.name
+}
+
+// 获取元素成分
+func (c *chem) Composition() map[int]ChemicalNum {
+	return c.comprise
 }
