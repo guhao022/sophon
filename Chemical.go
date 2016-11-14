@@ -268,12 +268,12 @@ type chem struct {
 	comprise map[int]ChemicalNum // 物质化学成分
 }
 
-func New() *Chemical {
-	chem := new(chem)
+func New() Chemical {
+	c := new(chem)
 
-	chem.id = "1"
+	c.id = "1"
 
-	return chem
+	return c
 }
 
 // 生成基本物质
