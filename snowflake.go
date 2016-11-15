@@ -20,7 +20,7 @@ const (
 
 // Epoch is set to the twitter snowflake epoch of 2006-03-21:20:50:14 GMT
 // You may customize this to set a different epoch for your application.
-var Epoch int64 = 1288834974657
+var Epoch int64 = 1478927655000
 
 // A Node struct holds the basic information needed for a snowflake generator
 // node

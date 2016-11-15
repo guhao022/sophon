@@ -16,20 +16,14 @@ type Star interface {
 	// 发现星球
 	Discovery(name string, style int)
 
-	// 获取星球基本信息
-	Info(id string) *Star
-
 	// 获取编号
-	StarID() string
+	StarID() int64
 
 	// 行星或恒星
 	StarStyle() int
 
 	// 名称
 	StarName() string
-
-	// 星球主要形成物质
-	ChemicalSubstance() map[float32]*Chemical
 }
 
 func StarText(code int) string {
@@ -38,39 +32,39 @@ func StarText(code int) string {
 
 type star struct {
 	// 类型
-	style int
+	Style int    `json:"style"`
 
 	// 唯一编号
-	id string
+	ID int64     `json:"id"`
 
 	// 名称
-	name string
+	Name string    `json:"name"`
+}
 
-	// 主要元素
-	chem map[float32]*Chemical
+func NewStar() Star {
+	id := node.Generate()
+
+	s := new(star)
+	s.ID = id.Int64()
+
+	return s
+
 }
 
 func (s *star) Discovery(name string, style int) {
-	s.style = StarFixedStar
-	s.name = "地球"
+	s.Style = style
+	s.Name = name
 }
 
-func (s *star) Info(id string) *star {
-	return s
-}
-
-func (s *star) StarID() string {
-	return s.id
+func (s *star) StarID() int64 {
+	return s.ID
 }
 
 func (s *star) StarStyle() int {
-	return s.style
+	return s.Style
 }
 
 func (s *star) StarName() string {
-	return s.name
+	return s.Name
 }
 
-func (s *star) ChemicalSubstance() map[float32]*Chemical {
-	return s.chem
-}

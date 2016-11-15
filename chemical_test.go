@@ -1,12 +1,21 @@
 package sophon
 
-/*import "testing"
+import (
+	"testing"
+	"fmt"
+)
 
 func TestChem_Generate(t *testing.T) {
-	var c *Chemical
+	c := NewChemical()
 
-	var water = map[int]ChemicalNum {
-		2: H,
-		1: O,
+	c.Generate(water(), "水")
+
+	fmt.Println(c.Name())
+}
+
+func water() map[ChemicalNum]int {
+	return map[ChemicalNum]int{
+		H: 2,
+		O: 1,
 	}
-}*/
+}

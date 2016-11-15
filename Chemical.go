@@ -4,7 +4,7 @@ type ChemicalNum int
 
 const (
 	// 元素周期表
-	H ChemicalNum = 1001 + iota
+	H ChemicalNum = 1 + iota
 	He
 	Li
 	Be
@@ -124,7 +124,129 @@ const (
 	Og
 )
 
-// 元素周期数关联名称
+// 元素周期数对应符号
+var chemSymbol = map[ChemicalNum]string {
+	H:  "H",
+	He: "He",
+	Li: "Li",
+	Be: "Be",
+	B:  "B",
+	C:  "C",
+	N:  "N",
+	O:  "O",
+	F:  "F",
+	Ne: "Ne",
+	Na: "Na",
+	Mg: "Mg",
+	Al: "Al",
+	Si: "Si",
+	P:  "P",
+	S:  "S",
+	Cl: "Cl",
+	Ar: "Ar",
+	K:  "K",
+	Ca: "Ca",
+	Sc: "Sc",
+	Ti: "Ti",
+	V:  "V",
+	Cr: "Cr",
+	Mn: "Mn",
+	Fe: "Fe",
+	Co: "Co",
+	Ni: "Ni",
+	Cu: "Cu",
+	Zn: "Zn",
+	Ga: "Ga",
+	Ge: "Ge",
+	As: "As",
+	Se: "Se",
+	Br: "Br",
+	Kr: "Kr",
+	Rb: "Rb",
+	Sr: "Sr",
+	Y:  "Y",
+	Zr: "Zr",
+	Nb: "Nb",
+	Mo: "Mo",
+	Tc: "Tc",
+	Ru: "Ru",
+	Rh: "Rh",
+	Pd: "Pd",
+	Ag: "Ag",
+	Cd: "Cd",
+	In: "In",
+	Sn: "Sn",
+	Sb: "Sb",
+	Te: "Te",
+	I:  "I",
+	Xe: "Xe",
+	Cs: "Cs",
+	Ba: "Ba",
+	La: "La",
+	Ce: "Ce",
+	Pr: "Pr",
+	Nd: "Nd",
+	Pm: "Pm",
+	Sm: "Sm",
+	En: "En",
+	Gd: "Gd",
+	Tb: "Tb",
+	Dy: "Dy",
+	Ho: "Ho",
+	Er: "Er",
+	Tm: "Tm",
+	Yb: "Yb",
+	Lu: "Lu",
+	Hf: "Hf",
+	Ta: "Ta",
+	W:  "W",
+	Re: "Re",
+	Os: "Os",
+	Ir: "Ir",
+	Pt: "Pt",
+	Au: "Au",
+	Hg: "Hg",
+	Tl: "Tl",
+	Pb: "Pb",
+	Bi: "Bi",
+	Po: "Po",
+	At: "At",
+	Rn: "Rn",
+	Fr: "Fr",
+	Ra: "Ra",
+	Ac: "Ac",
+	Th: "Th",
+	Pa: "Pa",
+	U:  "U",
+	Np: "Np",
+	Pu: "Pu",
+	Am: "Am",
+	Cm: "Cm",
+	Bk: "Bk",
+	Cf: "Cf",
+	Es: "Es",
+	Fm: "Fm",
+	Md: "Md",
+	No: "No",
+	Lr: "Lr",
+	Rf: "Rf",
+	Db: "Db",
+	Sg: "Sg",
+	Bh: "Bh",
+	Hs: "Hs",
+	Mt: "Mt",
+	Ds: "Ds",
+	Rg: "Rg",
+	Cn: "Cn",
+	Nh: "Nh",
+	Fl: "Fl",
+	Mc: "Mc",
+	Lv: "Lv",
+	Ts: "Ts",
+	Og: "Og",
+}
+
+// 元素周期数对应名称
 var chemText = map[ChemicalNum]string{
 	H:  "氢",
 	He: "氦",
@@ -246,44 +368,50 @@ var chemText = map[ChemicalNum]string{
 	Og: "奥气（推测）",
 }
 
-func ChemText(code int) string {
+func ChemText(code ChemicalNum) string {
 	return chemText[ChemicalNum(code)]
 }
 
-// 生成化学物质的函数
-type Contain func() map[int]ChemicalNum
+func ChemSymbol(code ChemicalNum) string {
+	return chemSymbol[ChemicalNum(code)]
+}
 
 // 基本物质
 type Chemical interface {
-	Generate(f Contain, name string)  // 生成基本物质
-	ID() string                       // 获取基本物质的编号
-	Name() string                     // 获取基本物质的名称
-	Composition() map[int]ChemicalNum // 基本物质的化学成分
+	// 生成基本物质
+	Generate(comprise map[ChemicalNum]int, name string)
+	// 获取基本物质的编号
+	ID() int64
+	// 获取基本物质的名称
+	Name() string
+	// 基本物质的化学成分(比如水的方程式为H2O, map[string]int{H:2,O:1})
+	Equation() map[string]int
+
 }
 
 // 默认实现化学物质
 type chem struct {
-	id       string              // 物质编号
+	id       int64              // 物质编号
 	name     string              // 物质名称
-	comprise map[int]ChemicalNum // 物质化学成分
+	comprise map[ChemicalNum]int // 物质化学成分
 }
 
-func New() Chemical {
+func NewChemical() Chemical {
 	c := new(chem)
 
-	c.id = "1"
+	c.id = node.Generate().Int64()
 
 	return c
 }
 
 // 生成基本物质
-func (c *chem) Generate(f Contain, name string) {
-	c.comprise = f()
+func (c *chem) Generate(comprise map[ChemicalNum]int, name string) {
+	c.comprise = comprise
 	c.name = name
 }
 
 // 获取元素符号
-func (c *chem) ID() string {
+func (c *chem) ID() int64 {
 	return c.id
 }
 
@@ -293,6 +421,13 @@ func (c *chem) Name() string {
 }
 
 // 获取元素成分
-func (c *chem) Composition() map[int]ChemicalNum {
-	return c.comprise
+func (c *chem) Equation() map[string]int {
+	var comp = make(map[string]int, len(c.comprise))
+
+	for k, v := range c.comprise {
+		key := ChemSymbol(k)
+
+		comp[key] = v
+	}
+	return comp
 }

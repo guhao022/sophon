@@ -8,10 +8,10 @@ import (
 func TestGenerate(t *testing.T) {
 	node, _ := NewNode(1023)
 
-	for n := 0; n < 10; n++ {
+	for n := 0; n < 12; n++ {
 		id := node.Generate()
 
-		fmt.Println(id)
+		fmt.Println(id.Base2())
 	}
 }
 
